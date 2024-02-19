@@ -271,6 +271,8 @@ volatile int i = 10;
 * volatile 关键字声明的变量，每次访问时都必须从内存中取出值（没有被 volatile 修饰的变量，可能由于编译器的优化，从 CPU 寄存器中取值）
 * const 可以是 volatile （如只读的状态寄存器）
 * 指针可以是 volatile
+* 使用场景：1.并发编程：当多个线程访问同一个变量时，可以使用volatile关键字来确保每次访问都从内存中读取最新的值，而不是使用缓存的值。
+* 2.中断处理：在中断处理程序中，被中断的代码可能会修改某些变量的值。通过使用volatile关键字，可以告诉编译器不要对这些变量进行优化，以确保中断处理程序能够正确地读取和修改变量的值。
 
 ### assert()
 
@@ -685,6 +687,8 @@ auto fcn2(It beg, It end) -> typename remove_reference<decltype(*beg)>::type
 常规引用，一般表示对象的身份。
 
 #### 右值引用
+详细介绍见这篇文章
+https://zhuanlan.zhihu.com/p/335994370
 
 右值引用就是必须绑定到右值（一个临时对象、将要销毁的对象）的引用，一般表示对象的值。
 
@@ -703,7 +707,19 @@ auto fcn2(It beg, It end) -> typename remove_reference<decltype(*beg)>::type
 * 宏定义可以实现类似于函数的功能，但是它终归不是函数，而宏定义中括弧中的“参数”也不是真的参数，在宏展开的时候对 “参数” 进行的是一对一的替换。
 
 ### 成员初始化列表
+```cpp
+class MyClass {
+private:
+    int myInt;
+    double myDouble;
+    std::string myString;
 
+public:
+    MyClass(int i, double d, const std::string& s) : myInt(i), myDouble(d), myString(s) {
+        // 构造函数的其他代码
+    }
+};
+```
 好处
 
 * 更高效：少了一次调用默认构造函数的过程。
@@ -711,8 +727,30 @@ auto fcn2(It beg, It end) -> typename remove_reference<decltype(*beg)>::type
   1. 常量成员，因为常量只能初始化不能赋值，所以必须放在初始化列表里面
   2. 引用类型，引用必须在定义的时候初始化，并且不能重新赋值，所以也要写在初始化列表里面
   3. 没有默认构造函数的类类型，因为使用初始化列表可以不必调用默认构造函数来初始化
-
+使用初始化列表的好处是，它可以提供更高效的初始化方式，避免了先默认初始化再赋值的额外开销。此外，对于某些成员变量，如果它们是常量或引用类型，初始化列表是唯一的初始化方式。
 ### initializer_list 列表初始化
+
+std::initializer_list<T> 是 C++ 标准库中的一个模板类，用于表示初始化列表。它允许以一种简洁的方式传递一组值给函数或构造函数。
+
+std::initializer_list<T> 提供了一种类似于数组的接口，可以通过迭代器访问其中的元素。它的元素类型是 T，可以是任何类型。
+
+以下是一个使用 std::initializer_list<T> 的示例
+```cpp
+#include <iostream>
+#include <initializer_list>
+
+void printValues(std::initializer_list<int> values) {
+    for (const auto& value : values) {
+        std::cout << value << " ";
+    }
+    std::cout << std::endl;
+}
+
+int main() {
+    printValues({1, 2, 3, 4, 5});  // 使用初始化列表调用函数
+    return 0;
+}
+```
 
 用花括号初始化器列表初始化一个对象，其中对应构造函数接受一个 `std::initializer_list` 参数.
 
@@ -867,7 +905,9 @@ int main()
 ### 虚析构函数
 
 虚析构函数是为了解决基类的指针指向派生类对象，并用基类的指针删除派生类对象。
-
+虚析构函数是在基类中声明为虚函数的析构函数。它用于实现多态性，确保在删除指向派生类对象的基类指针时，会调用正确的析构函数。
+当基类指针指向派生类对象时，如果基类的析构函数不是虚函数，那么在删除指针时只会调用基类的析构函数，而不会调用派生类的析构函数。这可能导致资源泄漏或未定义的行为。
+通过将基类的析构函数声明为虚函数，可以解决这个问题。这样，当通过基类指针删除派生类对象时，会首先调用派生类的析构函数，然后再调用基类的析构函数。这确保了正确的析构函数被调用，从而释放派生类对象所占用的资源。
 虚析构函数使用
 
 ```cpp
@@ -911,6 +951,13 @@ virtual int A() = 0;
 * 虚基类是虚继承中的基类，具体见下文虚继承。
 
 > [CSDN . C++ 中的虚函数、纯虚函数区别和联系](https://blog.csdn.net/u012260238/article/details/53610462)
+
+### 为什么构造函数不可以是虚函数
+* 从内存的角度看：
+虚函数对应一个虚函数表,虚函数表是存储在对象的内存空间中的。而调用虚函数使用过调用虚函数表来实现的。
+如果构造函数是虚函数,那么就需要通过虚函数表来调用,但是对象是通过构造函数实例化的，在调用构造函数之前，,虚函数表内存空间还没有被创建，无法找到虚表。所以构造函数不能是虚函数
+* 从使用的角度看：
+虚函数是通过指向派生类的基类指针或引用，访问派生类中同名覆盖成员函数。，但是构造函数是通过创建对象时自动调用的，不可能通过父类的指针或者引用去调用，所以规定构造函数不能是虚函数.
 
 ### 虚函数指针、虚函数表
 
@@ -1015,6 +1062,34 @@ new (place_address) type [size] { braced initializer list }
 * `place_address` 是个指针
 * `initializers` 提供一个（可能为空的）以逗号分隔的初始值列表
 
+例子：
+```cpp
+#include <iostream>
+
+class MyClass {
+public:
+    MyClass(int value) : data(value) {
+        std::cout << "Constructor called. Value: " << data << std::endl;
+    }
+
+    ~MyClass() {
+        std::cout << "Destructor called. Value: " << data << std::endl;
+    }
+
+private:
+    int data;
+};
+
+int main() {
+    void* memory = operator new(sizeof(MyClass));  // 分配内存
+    MyClass* obj = new (memory) MyClass(42);  // 在已分配内存上构造对象
+    obj->~MyClass();  // 手动调用析构函数
+    operator delete(memory);  // 释放内存
+    return 0;
+}
+```
+定位 new 对于在特定的内存位置上构造对象非常有用，例如在特定的内存池或硬件寄存器上创建对象。但需要注意，使用定位 new 需要手动管理对象的构造和析构过程，确保正确地调用构造函数和析构函数。
+
 ### delete this 合法吗？
 
 > [Is it legal (and moral) for a member function to say delete this?](https://isocpp.org/wiki/faq/freestore-mgmt#delete-this)
@@ -1070,6 +1145,10 @@ std::auto_ptr<std::string> ps (new std::string(str))；
 
 * 支持定制型删除器（custom deleter），可防范 Cross-DLL 问题（对象在动态链接库（DLL）中被 new 创建，却在另一个 DLL 内被 delete 销毁）、自动解除互斥锁
 
+##### enable_share_from_this
+在很多场合，经常会遇到一种情况，如何安全的获取对象的this指针，一般来说我们不建议直接返回this指针，可以想象下有这么一种情况，返回的this指针保存在外部一个局部/全局变量，当对象已经被析构了，但是外部变量并不知道指针指向的对象已经被析构了，如果此时外部使用了这个指针就会发生程序奔溃。既要像指针操作对象一样，又能安全的析构对象，很自然就想到，智能指针就很合适！
+https://blog.yanjingang.com/?p=7343
+
 ##### weak_ptr
 
 weak_ptr 允许你共享但不拥有某对象，一旦最末一个拥有该对象的智能指针失去了所有权，任何 weak_ptr 都会自动成空（empty）。因此，在 default 和 copy 构造函数之外，weak_ptr 只提供 “接受一个 shared_ptr” 的构造函数。
@@ -1094,24 +1173,38 @@ unique_ptr 是 C++11 才开始提供的类型，是一种在异常时可以帮�
 ### 强制类型转换运算符
 
 > [MSDN . 强制转换运算符](https://msdn.microsoft.com/zh-CN/library/5f6c9f8h.aspx)
-
+https://www.cnblogs.com/allen-rg/p/6999360.html
 #### static_cast
 
 * 用于非多态类型的转换
 * 不执行运行时类型检查（转换安全性不如 dynamic_cast）
 * 通常用于转换数值数据类型（如 float -> int）
 * 可以在整个类层次结构中移动指针，子类转化为父类安全（向上转换），父类转化为子类不安全（因为子类可能有不在父类的字段或方法）
-
 > 向上转换是一种隐式转换。
 
 #### dynamic_cast
 
-* 用于多态类型的转换
+* 用于多态类型的转换, 其他三种都是编译时完成的，dynamic_cast是运行时处理的，运行时要进行类型检查。
 * 执行行运行时类型检查
 * 只适用于指针或引用
 * 对不明确的指针的转换将失败（返回 nullptr），但不引发异常
 * 可以在整个类层次结构中移动指针，包括向上转换、向下转换
 
+* 使用dynamic_cast进行转换的，基类中一定要有虚函数，否则编译不通过。
+
+        需要检测有虚函数的原因：类中存在虚函数，就说明它有想要让基类指针或引用指向派生类对象的情况，此时转换才有意义。
+
+       
+        这是由于运行时类型检查需要运行时类型信息，而这个信息存储在类的虚函数表（关于虚函数表的概念，详细可见<Inside c++ object model>）中，
+        只有定义了虚函数的类才有虚函数表。
+
+* 在类的转换时，在类层次间进行上行转换时，dynamic_cast和static_cast的效果是一样的。在进行下行转换时，dynamic_cast具有类型检查的功能，比static_cast更安全。
+
+        向上转换，即为子类指针指向父类指针（一般不会出问题）；向下转换，即将父类指针转化子类指针。
+
+       向下转换的成功与否还与将要转换的类型有关，即要转换的指针指向的对象的实际类型与转换以后的对象类型一定要相同，否则转换失败。
+
+        在C++中，编译期的类型转换有可能会在运行时出现错误，特别是涉及到类对象的指针或引用操作时，更容易产生错误。Dynamic_cast操作符则可以在运行期对可能产生问题的类型转换进行测试。
 #### const_cast 
 
 * 用于删除 const、volatile 和 __unaligned 特性（如将 const int 类型转换为 int 类型 ）
